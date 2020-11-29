@@ -1,4 +1,5 @@
 import busio
+import struct
 
 class LEDs:
     RIGHT_HEADLIGHT = [0x00, 0x00, 0x00, 0x07]
@@ -19,13 +20,13 @@ class RawMotorModes:
     BACKWARD = 2
 
 
-class RVRDrive:
+class RVR:
 
     def __init__(self, tx, rx):
         self._uart = busio.UART(tx, rx, baudrate=115200)
 
 
-    @property
+
     def drive(self, speed, heading):
 
         flags = 0x00
@@ -43,18 +44,18 @@ class RVRDrive:
 
         drive_data.extend([~((sum(drive_data) - 0x8D) % 256) & 0x00FF, 0xD8])
 
-        self.uart.write(bytearray(drive_data))
+        self._uart.write(bytearray(drive_data))
 
         return
 
-    @property
-    def stop(heading):
-        RVRDrive.drive(0, heading)
+
+    def stop(self,heading):
+        self.drive(0, heading)
 
         return
 
-    @staticmethod
-    def set_raw_motors(left_mode, left_speed, right_mode, right_speed):
+
+    def set_raw_motors(self, left_mode, left_speed, right_mode, right_speed):
         if left_mode < 0 or left_mode > 2:
             left_mode = 0
 
@@ -68,26 +69,43 @@ class RVRDrive:
 
         raw_motor_data.extend([~((sum(raw_motor_data) - 0x8D) % 256) & 0x00FF, 0xD8])
 
-        uart.write(bytearray(raw_motor_data))
+        self._uart.write(bytearray(raw_motor_data))
 
         return
 
-    @staticmethod
-    def reset_yaw():
+    def float_to_hex(self,f):
+        #return hex(struct.unpack('<I', struct.pack('<f', f))[0])
+        result = bytearray(struct.pack('<f', f))
+
+        return result
+
+    def drive_to_position_si(self, heading,x, y, speed):
+        raw_motor_data = [
+            0x8D, 0x3E, 0x12, 0x01, 0x16, 0x38, 0x00]
+
+        bytesHeading = self.float_to_hex(heading)
+        bytesX = self.float_to_hex(x)
+        bytesY = self.float_to_hex(x)
+        bytesSpeed = self.float_to_hex(speed)
+        header = bytearray(raw_motor_data)
+        header.extend(bytesHeading)
+        header.extend(bytesX)
+        header.extend(bytesY)
+        header.extend(bytesSpeed)
+        ending = bytearray([~((sum(raw_motor_data) - 0x8D) % 256) & 0x00FF, 0xD8])
+        header.extend(ending)
+        #raw_motor_data.extend([~((sum(raw_motor_data) - 0x8D) % 256) & 0x00FF, 0xD8])
+        print(header)
+        self._uart.write(header)
+
+    def reset_yaw(self):
         drive_data = [0x8D, 0x3E, 0x12, 0x01, 0x16, 0x06, 0x00]
 
         drive_data.extend([~((sum(drive_data) - 0x8D) % 256) & 0x00FF, 0xD8])
 
-        uart.write(bytearray(drive_data))
+        self._uart.write(bytearray(drive_data))
 
         return
-
-
-class RVRLed:
-
-    def __init__(self, tx, rx):
-        self._uart = busio.UART(tx, rx, baudrate=115200)
-
 
     def set_all_leds(self, red, green, blue):
         led_data = [
@@ -116,22 +134,19 @@ class RVRLed:
 
         return
 
-
-class RVRPower:
-    @staticmethod
-    def wake():
+    def wake(self):
         power_data = [0x8D, 0x3E, 0x11, 0x01, 0x13, 0x0D, 0x00]
         power_data.extend([~((sum(power_data) - 0x8D) % 256) & 0x00FF, 0xD8])
 
-        uart.write(bytearray(power_data))
+        self._uart.write(bytearray(power_data))
 
         return
 
-    @staticmethod
-    def sleep():
+
+    def sleep(self):
         power_data = [0x8D, 0x3E, 0x11, 0x01, 0x13, 0x01, 0x00]
         power_data.extend([~((sum(power_data) - 0x8D) % 256) & 0x00FF, 0xD8])
 
-        uart.write(bytearray(power_data))
+        self._uart.write(bytearray(power_data))
 
         return
